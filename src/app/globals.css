@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+@theme {
+  --color-teal: #176b63;
+  --color-teal-dark: #0f4d47;
+  --color-teal-light: #2c8a80;
+  --color-sage: #dcede5;
+  --color-sage-dark: #bfdbcd;
+  --color-cream: #faf7f0;
+  --color-peach: #f7e4d6;
+  --color-peach-dark: #edc9ab;
+  --color-lavender: #ece9f7;
+  --color-lavender-dark: #d6d0ec;
+  --color-warm-white: #fffdfc;
+  --color-ink: #18302e;
+  --color-muted: #657572;
+  --color-danger: #b3554a;
+  --color-danger-bg: #f8e2de;
+  --color-background: #faf7f0;
+  --color-foreground: #18302e;
+  --font-sans: var(--font-manrope);
+  --radius-2xl: 1.75rem;
+  --radius-3xl: 2.25rem;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  background: var(--color-cream);
+}
+
+body {
+  background: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-manrope), "Manrope", system-ui, -apple-system, sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+::selection {
+  background: var(--color-sage-dark);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+  70% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+.pulse-ring {
+  animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes wave {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.wave-bar {
+  animation: wave 1s ease-in-out infinite;
+  transform-origin: center;
+}
+
+@keyframes check-pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.check-pop {
+  animation: check-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes float-up {
+  0% {
+    transform: translateY(6px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.float-up {
+  animation: float-up 0.4s ease-out both;
+}
