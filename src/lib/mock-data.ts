@@ -1,6 +1,7 @@
 import type {
   Appointment,
   Caregiver,
+  Condition,
   Doctor,
   HealthEntry,
   Medication,
@@ -35,6 +36,12 @@ export const doctors: Doctor[] = [
     specialty: "General Physician",
     clinic: "Green Valley Clinic",
     phone: "+91 91234 56789",
+  },
+  {
+    id: "doc-self-reported",
+    name: "Self-reported",
+    specialty: "—",
+    clinic: "—",
   },
 ];
 
@@ -118,6 +125,11 @@ export const healthEntries: HealthEntry[] = [
   { id: "he-4", date: "2026-09-11", timeOfDay: "morning", feeling: "good" },
   { id: "he-5", date: "2026-09-10", timeOfDay: "morning", feeling: "not-great", symptomIds: ["sym-4"] },
   { id: "he-6", date: "2026-09-09", timeOfDay: "morning", feeling: "good" },
+];
+
+export const conditions: Condition[] = [
+  { id: "cond-1", name: "Hypertension", diagnosedDate: "2026-08-12", reportedVia: "manual" },
+  { id: "cond-2", name: "Type 2 Diabetes", diagnosedDate: "2026-06-02", reportedVia: "manual" },
 ];
 
 export const caregivers: Caregiver[] = [

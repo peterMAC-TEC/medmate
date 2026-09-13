@@ -5,7 +5,7 @@ import { X, Keyboard } from "lucide-react";
 import { useAppState } from "@/contexts/AppStateContext";
 import { voiceService, isVoiceSupported } from "@/lib/voiceService";
 import { interpret, generateReply, type NluResult } from "@/lib/aiService";
-import { medications } from "@/lib/mock-data";
+import type { LanguageCode } from "@/lib/types";
 import { VoiceButton } from "./VoiceButton";
 import { ConfidenceConfirm, LowConfidenceHelp } from "./ConfidenceConfirm";
 import { PrimaryAction } from "./PrimaryAction";
@@ -25,7 +25,8 @@ function nextId() {
 }
 
 export function VoiceConversation({ initialPrompt, onClose }: VoiceConversationProps) {
-  const { t, language, voiceStyle, markTaken, addHealthEntry, addSymptom } = useAppState();
+  const { t, language, voiceStyle, markTaken, addHealthEntry, addSymptom, medications, addMedication, addCondition } =
+    useAppState();
   const [turns, setTurns] = useState<VoiceTurn[]>([]);
   const [status, setStatus] = useState<Status>("idle");
   const [liveTranscript, setLiveTranscript] = useState("");
@@ -40,9 +41,9 @@ export function VoiceConversation({ initialPrompt, onClose }: VoiceConversationP
   }, []);
 
   const speak = useCallback(
-    (text: string) => {
+    (text: string, lang: LanguageCode = language) => {
       addTurn("medmate", text);
-      voiceService.speak(text, language, "normal", voiceStyle);
+      voiceService.speak(text, lang, "normal", voiceStyle);
     },
     [addTurn, language, voiceStyle]
   );
@@ -70,12 +71,21 @@ export function VoiceConversation({ initialPrompt, onClose }: VoiceConversationP
         addSymptom(result.symptomName, result.severity, result.rawText);
       } else if (result.intent === "report-feeling" && result.feeling) {
         addHealthEntry(result.feeling, result.rawText);
+      } else if (result.intent === "log-prescription") {
+        addMedication({
+          name: result.prescriptionName ?? result.rawText,
+          dosage: result.dosage,
+          purpose: result.purpose,
+          doctorName: result.doctorName,
+        });
+      } else if (result.intent === "log-condition" && result.conditionName) {
+        addCondition(result.conditionName, result.rawText);
       }
-      speak(generateReply(result, voiceStyle));
+      speak(generateReply(result, voiceStyle), result.spokenLanguage);
       setStatus("idle");
       setPending(null);
     },
-    [markTaken, addSymptom, addHealthEntry, speak, voiceStyle]
+    [markTaken, addSymptom, addHealthEntry, addMedication, addCondition, speak, voiceStyle]
   );
 
   const handleTranscript = useCallback(
@@ -87,11 +97,11 @@ export function VoiceConversation({ initialPrompt, onClose }: VoiceConversationP
       } else if (result.confidence === "medium") {
         setPending(result);
         setStatus("needs-confirm");
-        speak(generateReply(result, voiceStyle));
+        speak(generateReply(result, voiceStyle), result.spokenLanguage);
       } else {
         setPending(result);
         setStatus("needs-help");
-        speak(generateReply(result, voiceStyle));
+        speak(generateReply(result, voiceStyle), result.spokenLanguage);
       }
     },
     [addTurn, language, applyResult, speak, voiceStyle]
@@ -127,8 +137,6 @@ export function VoiceConversation({ initialPrompt, onClose }: VoiceConversationP
     if (!typedValue.trim()) return;
     handleTranscript(typedValue.trim());
     setTypedValue("");
-    setStatus("thinking");
-    setTimeout(() => setStatus((s) => (s === "thinking" ? "idle" : s)), 10);
   }, [typedValue, handleTranscript]);
 
   return (

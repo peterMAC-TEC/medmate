@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { ChevronRight, CalendarDays } from "lucide-react";
 import { useAppState } from "@/contexts/AppStateContext";
-import { medications, getAdherence, appointments, getDoctor } from "@/lib/mock-data";
+import { getAdherence, appointments, getDoctor } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { formatDate, formatTime } from "@/lib/utils";
 
 export default function FamilyPage() {
-  const { t, symptoms, userName } = useAppState();
+  const { t, symptoms, userName, medications, conditions } = useAppState();
 
   const overallAdherence = Math.round(
     medications.reduce((sum, m) => sum + getAdherence(m.id), 0) / medications.length
@@ -34,6 +34,19 @@ export default function FamilyPage() {
         <p className="text-5xl font-bold mt-1">{overallAdherence}%</p>
         <p className="text-sm opacity-80 mt-1">{t.thisWeek}</p>
       </div>
+
+      <section className="mt-6">
+        <h2 className="text-xl font-bold text-ink mb-3">Known conditions</h2>
+        <div className="flex flex-col gap-2.5">
+          {conditions.length === 0 && <p className="text-base text-muted">{t.nothingHereYet}</p>}
+          {conditions.map((c) => (
+            <div key={c.id} className="flex items-center justify-between rounded-2xl bg-warm-white p-4 border border-ink/5">
+              <p className="font-semibold text-ink">{c.name}</p>
+              {c.diagnosedDate && <span className="text-sm text-muted">since {formatDate(c.diagnosedDate)}</span>}
+            </div>
+          ))}
+        </div>
+      </section>
 
       <section className="mt-6">
         <h2 className="text-xl font-bold text-ink mb-3">{t.recentSymptoms}</h2>

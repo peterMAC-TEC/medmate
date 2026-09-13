@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useAppState } from "@/contexts/AppStateContext";
-import { demoUser, caregivers } from "@/lib/mock-data";
+import { caregivers } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import { Switch } from "@/components/Switch";
@@ -26,7 +26,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export default function SettingsPage() {
-  const { t, voiceStyle, setVoiceStyle } = useAppState();
+  const { t, voiceStyle, setVoiceStyle, profile, medications } = useAppState();
   const [medReminders, setMedReminders] = useState(true);
   const [caregiverNotif, setCaregiverNotif] = useState(true);
   const [dataShare, setDataShare] = useState(true);
@@ -36,8 +36,8 @@ export default function SettingsPage() {
       <PageHeader title={t.navSettings} />
 
       <SettingsSection title={t.myProfile}>
-        <Row label={t.name} value={demoUser.name} />
-        <Row label={t.age} value={demoUser.age} />
+        <Row label={t.name} value={profile?.name} />
+        <Row label={t.age} value={profile?.age} />
       </SettingsSection>
 
       <SettingsSection title={t.voice}>
@@ -72,7 +72,7 @@ export default function SettingsPage() {
       </SettingsSection>
 
       <SettingsSection title={t.myMedicines}>
-        <Row label={t.manageMedications} value="3" />
+        <Row label={t.manageMedications} value={medications.length} />
       </SettingsSection>
 
       <SettingsSection title={t.family}>

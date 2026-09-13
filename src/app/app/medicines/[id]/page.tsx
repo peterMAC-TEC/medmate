@@ -4,27 +4,34 @@ import { useParams } from "next/navigation";
 import { notFound } from "next/navigation";
 import { Pill } from "lucide-react";
 import { useAppState } from "@/contexts/AppStateContext";
-import {
-  getMedication,
-  getDoctor,
-  getAdherence,
-  medicationTimeline,
-  symptoms as allSymptoms,
-} from "@/lib/mock-data";
+import { getAdherence, medicationTimeline, symptoms as allSymptoms } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { MedicationTimeline } from "@/components/Timeline";
 import { formatDate, formatTime } from "@/lib/utils";
 
 export default function MedicationDetailPage() {
   const params = useParams<{ id: string }>();
-  const { t } = useAppState();
-  const medication = getMedication(params.id);
+  const { t, medications, getDoctorName } = useAppState();
+  const medication = medications.find((m) => m.id === params.id);
 
   if (!medication) return notFound();
 
-  const doctor = getDoctor(medication.doctorId);
+  const doctorName = getDoctorName(medication.doctorId);
   const adherence = getAdherence(medication.id);
-  const events = medicationTimeline.filter((e) => e.medicationId === medication.id);
+  const existingEvents = medicationTimeline.filter((e) => e.medicationId === medication.id);
+  const events =
+    existingEvents.length > 0
+      ? existingEvents
+      : [
+          {
+            id: `${medication.id}-added`,
+            date: medication.prescribedDate,
+            kind: "prescription" as const,
+            title: `${medication.name} added`,
+            detail: `${medication.dosage} · ${medication.purpose}`,
+            medicationId: medication.id,
+          },
+        ];
   const relatedSymptoms = allSymptoms.filter((s) => s.name === "Dizziness" && medication.name === "Amlodipine");
 
   return (
@@ -51,7 +58,7 @@ export default function MedicationDetailPage() {
       <div className="mt-6 grid grid-cols-2 gap-4">
         <div className="rounded-3xl bg-warm-white p-5 border border-ink/5">
           <p className="text-sm font-semibold text-muted">{t.prescribedBy}</p>
-          <p className="text-xl font-bold text-ink mt-1">{doctor?.name}</p>
+          <p className="text-xl font-bold text-ink mt-1">{doctorName}</p>
           <p className="text-sm text-muted mt-1">{formatDate(medication.prescribedDate)}</p>
         </div>
         <div className="rounded-3xl bg-warm-white p-5 border border-ink/5">

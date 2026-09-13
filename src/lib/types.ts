@@ -65,6 +65,14 @@ export interface MedicationEvent {
 
 export type SymptomSeverity = "mild" | "moderate" | "severe";
 
+export interface Condition {
+  id: string;
+  name: string;
+  diagnosedDate?: string;
+  note?: string;
+  reportedVia: "voice" | "manual";
+}
+
 export interface Symptom {
   id: string;
   name: string;

@@ -1,12 +1,11 @@
 "use client";
 
 import { useAppState } from "@/contexts/AppStateContext";
-import { medications } from "@/lib/mock-data";
 import { MedicationCard } from "@/components/MedicationCard";
 import { PageHeader } from "@/components/PageHeader";
 
 export default function MedicinesPage() {
-  const { t, takenToday } = useAppState();
+  const { t, takenToday, medications } = useAppState();
   return (
     <div>
       <PageHeader title={t.navMedicines} />

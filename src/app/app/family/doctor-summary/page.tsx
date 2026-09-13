@@ -2,13 +2,13 @@
 
 import { Download } from "lucide-react";
 import { useAppState } from "@/contexts/AppStateContext";
-import { medications, getAdherence } from "@/lib/mock-data";
+import { getAdherence } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { PrimaryAction } from "@/components/PrimaryAction";
 import { formatDate } from "@/lib/utils";
 
 export default function DoctorSummaryPage() {
-  const { t, symptoms } = useAppState();
+  const { t, symptoms, medications, conditions } = useAppState();
 
   const symptomCounts = Object.entries(
     symptoms.reduce<Record<string, number>>((acc, s) => {
@@ -42,6 +42,24 @@ export default function DoctorSummaryPage() {
           );
         })}
       </div>
+
+      <section className="mt-6">
+        <h2 className="text-xl font-bold text-ink mb-3">Known conditions</h2>
+        <div className="rounded-3xl bg-warm-white p-5 border border-ink/5">
+          {conditions.length === 0 ? (
+            <p className="text-base text-muted">{t.nothingHereYet}</p>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {conditions.map((c) => (
+                <li key={c.id} className="flex justify-between text-base text-ink">
+                  <span>{c.name}</span>
+                  {c.diagnosedDate && <span className="text-muted">{formatDate(c.diagnosedDate)}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
 
       <section className="mt-6">
         <h2 className="text-xl font-bold text-ink mb-3">{t.symptoms}</h2>

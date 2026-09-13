@@ -2,9 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { PartyPopper } from "lucide-react";
+import { PartyPopper, Pill } from "lucide-react";
 import { useAppState } from "@/contexts/AppStateContext";
-import { medications } from "@/lib/mock-data";
 import { HealthCheckIn } from "@/components/HealthCheckIn";
 import { MedicationCard } from "@/components/MedicationCard";
 import { PrimaryAction } from "@/components/PrimaryAction";
@@ -27,13 +26,13 @@ function isPastScheduledTime(time: string): boolean {
 }
 
 export default function HomePage() {
-  const { t, userName, takenToday, markTaken, addHealthEntry } = useAppState();
+  const { t, userName, takenToday, markTaken, addHealthEntry, medications } = useAppState();
   const router = useRouter();
   const [feeling, setFeeling] = useState<FeelingLevel | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [missedDismissed, setMissedDismissed] = useState(false);
 
-  const activeMeds = useMemo(() => medications.filter((m) => m.status === "active"), []);
+  const activeMeds = useMemo(() => medications.filter((m) => m.status === "active"), [medications]);
   const nextMed = activeMeds.find((m) => !takenToday[m.id]);
   const allDone = activeMeds.length > 0 && !nextMed;
   const isMissed = !!nextMed && !missedDismissed && isPastScheduledTime(nextMed.time.split(",")[0]);
@@ -73,7 +72,19 @@ export default function HomePage() {
       </section>
 
       <section>
-        {allDone ? (
+        {activeMeds.length === 0 ? (
+          <div className="flex flex-col items-center gap-3 rounded-3xl border-2 border-dashed border-ink/10 bg-warm-white/60 px-6 py-10 text-center">
+            <Pill className="text-teal-dark" size={32} />
+            <p className="text-xl font-bold text-ink">No medicines yet</p>
+            <p className="max-w-xs text-base text-muted">
+              Tell MedMate what you take — like &ldquo;Doctor Mehta prescribed me Amlodipine 5 mg for blood
+              pressure&rdquo; — and it&apos;ll keep track for you.
+            </p>
+            <div className="mt-2 w-full max-w-xs">
+              <PrimaryAction onClick={() => router.push("/app/voice")}>{t.talkToMedMate}</PrimaryAction>
+            </div>
+          </div>
+        ) : allDone ? (
           <div className="flex flex-col items-center gap-3 rounded-3xl bg-sage px-6 py-10 text-center">
             <PartyPopper className="text-teal-dark" size={40} />
             <p className="text-2xl font-bold text-teal-dark">{t.allDoneToday}</p>
