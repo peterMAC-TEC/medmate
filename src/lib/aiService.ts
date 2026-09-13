@@ -1,6 +1,9 @@
 import type { ConfidenceLevel, LanguageCode, SymptomSeverity } from "./types";
 import { medications } from "./mock-data";
 import { detectSpokenLanguage, localizeSeverity, localizeSymptomName, replyDictionaries } from "./conversationReplies";
+import { findKnownMedicine } from "./medicineDatabase";
+import { normalizeSpokenNumbers } from "./speechNumbers";
+import { formatTime } from "./utils";
 
 /**
  * aiService is a placeholder for the future natural-language layer:
@@ -10,6 +13,8 @@ import { detectSpokenLanguage, localizeSeverity, localizeSymptomName, replyDicti
  * A real implementation would swap the bodies below for calls to an LLM,
  * keeping this same interface so UI code never changes.
  */
+
+export type TimeOfDay = "morning" | "afternoon" | "evening" | "night";
 
 export type Intent =
   | "confirm-medication-taken"
@@ -35,6 +40,12 @@ export interface NluResult {
   purpose?: string;
   /** log-prescription: the prescribing doctor's name, if mentioned. */
   doctorName?: string;
+  /** log-prescription: how many times a day, if mentioned ("twice a day"). */
+  frequencyPerDay?: number;
+  /** log-prescription: how many days to take it for, if mentioned. */
+  durationDays?: number;
+  /** log-prescription: time of day, only if explicitly said ("in the morning"). */
+  explicitTimeOfDay?: TimeOfDay;
   /** log-condition: canonical condition name matched from speech. */
   conditionName?: string;
   rawText: string;
@@ -109,9 +120,20 @@ function titleCase(word: string): string {
   return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
 }
 
+// Words that can immediately follow "doctor"/"dr" in ordinary sentences
+// ("the doctor prescribed...", "doctor gave me...") without naming anyone —
+// excluded so they're never mistaken for the doctor's actual name.
+const DOCTOR_NAME_STOPWORDS = new Set([
+  "prescribed", "gave", "said", "told", "wrote", "started", "put", "gives",
+  "says", "recommended", "suggested", "changed", "increased", "decreased",
+]);
+
 function extractDoctorName(text: string): string | undefined {
   const match = text.match(/(?:dr\.?|doctor)\s+([a-z]+)/i);
-  return match ? `Dr. ${titleCase(match[1])}` : undefined;
+  if (!match) return undefined;
+  const candidate = match[1].toLowerCase();
+  if (DOCTOR_NAME_STOPWORDS.has(candidate)) return undefined;
+  return `Dr. ${titleCase(match[1])}`;
 }
 
 function extractDosage(text: string): string | undefined {
@@ -129,6 +151,82 @@ function extractPrescriptionName(text: string): string | undefined {
     /(?:prescribed(?: me)?|started me on|put me on|doctor gave me|likh diya|shuru kiya)\s+(?:me\s+)?([a-z]+)/i
   );
   return match ? titleCase(match[1]) : undefined;
+}
+
+const FREQUENCY_PATTERNS: [RegExp, number][] = [
+  [/\b(once|one time|1 time)s?\s+(a|per)?\s*day\b|\bonce daily\b/i, 1],
+  [/\b(twice|two times|2 times)\s+(a|per)?\s*day\b|\btwice daily\b/i, 2],
+  [/\b(thrice|three times|3 times)\s+(a|per)?\s*day\b|\bthree times daily\b/i, 3],
+  [/\b(four times|4 times)\s+(a|per)?\s*day\b|\bfour times daily\b/i, 4],
+];
+
+function extractFrequencyPerDay(text: string): number | undefined {
+  for (const [pattern, count] of FREQUENCY_PATTERNS) {
+    if (pattern.test(text)) return count;
+  }
+  return undefined;
+}
+
+function extractDurationDays(text: string): number | undefined {
+  // "for 5 days", "for the next 5 days", "for the next five days" (already
+  // digit-normalized by the time this runs) all need to resolve the same way.
+  const daysMatch = text.match(/for\s+(?:the\s+next\s+|a\s+|next\s+)?(\d+)\s*days?/i);
+  if (daysMatch) return Number(daysMatch[1]);
+  if (/for\s+a\s+week/i.test(text)) return 7;
+  const weeksMatch = text.match(/for\s+(\d+)\s*weeks?/i);
+  if (weeksMatch) return Number(weeksMatch[1]) * 7;
+  if (/for\s+a\s+month/i.test(text)) return 30;
+  return undefined;
+}
+
+function extractTimeOfDay(text: string): TimeOfDay | undefined {
+  const lower = text.toLowerCase();
+  if (/\bmorning\b|\bsubah\b/.test(lower)) return "morning";
+  if (/\bafternoon\b|\bdopahar\b/.test(lower)) return "afternoon";
+  if (/\bevening\b|\bshaam\b/.test(lower)) return "evening";
+  if (/\bnight\b|\braat\b/.test(lower)) return "night";
+  return undefined;
+}
+
+const TIME_OF_DAY_HOUR: Record<TimeOfDay, number> = { morning: 8, afternoon: 14, evening: 19, night: 22 };
+
+/** Human label for how often a medicine is taken, from times-per-day. */
+export function frequencyLabel(frequencyPerDay?: number): string {
+  switch (frequencyPerDay) {
+    case 1:
+      return "Once daily";
+    case 2:
+      return "Twice daily";
+    case 3:
+      return "Three times daily";
+    case 4:
+      return "Four times daily";
+    default:
+      return "Daily";
+  }
+}
+
+/** Plain-English "twice a day for 5 days" clause, or undefined if neither was mentioned. */
+function buildScheduleClause(frequencyPerDay?: number, durationDays?: number): string | undefined {
+  const freqPart = frequencyPerDay ? frequencyLabel(frequencyPerDay).toLowerCase() : undefined;
+  const durationPart = durationDays ? `for ${durationDays} day${durationDays === 1 ? "" : "s"}` : undefined;
+  if (freqPart && durationPart) return `${freqPart} ${durationPart}`;
+  return freqPart ?? durationPart;
+}
+
+/**
+ * Spaces doses evenly across 24 hours starting from the chosen anchor
+ * time-of-day, wrapping past midnight if needed, and returns them as
+ * "HH:MM" strings in ascending order — e.g. anchor "morning" (8) with
+ * frequencyPerDay 2 gives ["08:00", "20:00"].
+ */
+export function computeDoseTimes(anchor: TimeOfDay, frequencyPerDay = 1): string[] {
+  const anchorHour = TIME_OF_DAY_HOUR[anchor];
+  const spacing = 24 / Math.max(frequencyPerDay, 1);
+  const hours = Array.from({ length: frequencyPerDay }, (_, i) => Math.round(anchorHour + i * spacing) % 24);
+  return [...new Set(hours)]
+    .sort((a, b) => a - b)
+    .map((h) => `${String(h).padStart(2, "0")}:00`);
 }
 
 function findMedicationMention(text: string): string | undefined {
@@ -172,15 +270,29 @@ export function interpret(text: string, preferredLanguage: LanguageCode): NluRes
   }
 
   if (PRESCRIPTION_TRIGGERS.test(lower)) {
+    // Spoken strengths ("dolo six fifty") become digits ("dolo 650") before
+    // anything else looks at the text, so name/dosage extraction below —
+    // and the known-medicine lookup — see the same shape as typed input.
+    const normalized = normalizeSpokenNumbers(text);
+    const known = findKnownMedicine(normalized);
+    const nameMatch = known ?? extractPrescriptionName(normalized);
+    let dosage = extractDosage(normalized);
+    if (!dosage && known) {
+      const trailingNumber = known.match(/(\d+)\s*$/);
+      if (trailingNumber) dosage = `${trailingNumber[1]} mg`;
+    }
     return {
       intent: "log-prescription",
       // Medication changes always need explicit confirmation — never
       // auto-recorded at "high" confidence, no matter how clear the text.
       confidence: "medium",
-      prescriptionName: extractPrescriptionName(text),
-      dosage: extractDosage(text),
-      purpose: extractPurpose(text),
-      doctorName: extractDoctorName(text),
+      prescriptionName: nameMatch,
+      dosage,
+      purpose: extractPurpose(normalized),
+      doctorName: extractDoctorName(normalized),
+      frequencyPerDay: extractFrequencyPerDay(normalized),
+      durationDays: extractDurationDays(normalized),
+      explicitTimeOfDay: extractTimeOfDay(normalized),
       rawText: text,
       spokenLanguage,
     };
@@ -282,8 +394,13 @@ export function generateReply(intent: NluResult, style: "warm" | "bold" = "warm"
     }
     case "log-prescription": {
       const name = intent.prescriptionName ?? intent.rawText;
-      if (intent.confidence !== "high") return r.prescriptionAskConfirm(name, intent.dosage, intent.doctorName);
-      return r.prescriptionRecorded(name, intent.dosage);
+      const schedule = buildScheduleClause(intent.frequencyPerDay, intent.durationDays);
+      // Known names like "Dolo 650" already say the strength — don't also
+      // tack on "650 mg" right after it and repeat the number.
+      const numberInName = intent.dosage?.match(/\d+/)?.[0];
+      const dosageForSpeech = numberInName && name.includes(numberInName) ? undefined : intent.dosage;
+      if (intent.confidence !== "high") return r.prescriptionAskConfirm(name, dosageForSpeech, intent.doctorName, schedule);
+      return r.prescriptionRecorded(name, dosageForSpeech, schedule);
     }
     case "log-condition": {
       const name = intent.conditionName ?? intent.rawText;
@@ -295,6 +412,17 @@ export function generateReply(intent: NluResult, style: "warm" | "bold" = "warm"
     default:
       return r.notUnderstood;
   }
+}
+
+/** The simple "what time?" follow-up, asked only when speech didn't already say. */
+export function scheduleTimeQuestion(lang: LanguageCode): string {
+  return (replyDictionaries[lang] ?? replyDictionaries.en).askScheduleTime;
+}
+
+/** Announces the actual reminder times once a schedule has been picked. */
+export function scheduleConfirmedReply(lang: LanguageCode, times: string[]): string {
+  const formatted = times.map(formatTime).join(" and ");
+  return (replyDictionaries[lang] ?? replyDictionaries.en).scheduleConfirmed(formatted);
 }
 
 /**

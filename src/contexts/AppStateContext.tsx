@@ -39,6 +39,12 @@ interface AddMedicationInput {
   dosage?: string;
   purpose?: string;
   doctorName?: string;
+  /** e.g. "Twice daily" — falls back to "Daily" if not given. */
+  frequencyLabel?: string;
+  /** Dose times as "HH:MM" strings; joined into Medication.time. Defaults to ["08:00"]. */
+  times?: string[];
+  /** Computed from a spoken duration ("for 5 days"), if any. */
+  endDate?: string;
 }
 
 export interface Profile {
@@ -192,12 +198,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           id: `med-${Date.now()}`,
           name: input.name,
           dosage: input.dosage ?? "As directed",
-          frequency: "Daily",
-          time: "08:00",
+          frequency: input.frequencyLabel ?? "Daily",
+          time: (input.times && input.times.length > 0 ? input.times : ["08:00"]).join(","),
           purpose: input.purpose ? `For ${input.purpose}` : "Self-reported",
           doctorId,
           prescribedDate: todayISO(),
           startDate: todayISO(),
+          endDate: input.endDate,
           status: "active",
           color: MEDICATION_COLORS[prev.length % MEDICATION_COLORS.length],
           doseChanges: [],

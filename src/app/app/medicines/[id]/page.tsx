@@ -45,9 +45,12 @@ export default function MedicationDetailPage() {
         <div>
           <p className="text-3xl font-bold text-ink">{medication.dosage}</p>
           <p className="text-base text-muted mt-0.5">
-            {medication.frequency} · {formatTime(medication.time.split(",")[0])}
+            {medication.frequency} · {medication.time.split(",").map(formatTime).join(" & ")}
           </p>
           <p className="text-base text-muted">{medication.purpose}</p>
+          {medication.endDate && (
+            <p className="text-sm text-muted mt-1">Until {formatDate(medication.endDate)}</p>
+          )}
         </div>
       </div>
 

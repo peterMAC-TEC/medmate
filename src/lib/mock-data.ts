@@ -11,6 +11,7 @@ import type {
   TimelineEvent,
   User,
 } from "./types";
+import { addDays } from "./utils";
 
 export const demoUser: User = {
   id: "user-001",
@@ -222,12 +223,9 @@ export function getSymptomsFor(medicationId?: string): Symptom[] {
 }
 
 export function symptomHistory(name: string, days = 7): boolean[] {
-  const today = new Date("2026-09-13");
   const result: boolean[] = [];
   for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const iso = d.toISOString().slice(0, 10);
+    const iso = addDays(todayISO(), -i);
     result.push(symptoms.some((s) => s.name === name && s.date === iso));
   }
   return result;

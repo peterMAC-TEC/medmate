@@ -4,14 +4,37 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { X, Keyboard } from "lucide-react";
 import { useAppState } from "@/contexts/AppStateContext";
 import { voiceService, isVoiceSupported } from "@/lib/voiceService";
-import { interpret, generateReply, type NluResult } from "@/lib/aiService";
+import {
+  interpret,
+  generateReply,
+  computeDoseTimes,
+  frequencyLabel,
+  scheduleTimeQuestion,
+  scheduleConfirmedReply,
+  type NluResult,
+  type TimeOfDay,
+} from "@/lib/aiService";
+import { todayISO } from "@/lib/mock-data";
+import { addDays } from "@/lib/utils";
 import type { LanguageCode } from "@/lib/types";
 import { VoiceButton } from "./VoiceButton";
 import { ConfidenceConfirm, LowConfidenceHelp } from "./ConfidenceConfirm";
 import { PrimaryAction } from "./PrimaryAction";
 import type { VoiceTurn } from "@/lib/types";
 
-type Status = "idle" | "listening" | "thinking" | "needs-confirm" | "needs-help" | "typing";
+type Status =
+  | "idle"
+  | "listening"
+  | "thinking"
+  | "needs-confirm"
+  | "needs-severity"
+  | "needs-help"
+  | "needs-schedule"
+  | "typing";
+
+const SEVERITY_OPTIONS = ["mild", "moderate", "severe"] as const;
+
+const TIME_OF_DAY_OPTIONS: TimeOfDay[] = ["morning", "afternoon", "evening", "night"];
 
 interface VoiceConversationProps {
   initialPrompt?: string;
@@ -60,6 +83,31 @@ export function VoiceConversation({ initialPrompt, onClose }: VoiceConversationP
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [turns, status]);
 
+  // A new prescription always ends with a schedule — either the anchor
+  // time the person already said ("in the morning"), or one they just
+  // picked from the follow-up question — spaced across the day by how
+  // often it's taken, then confirmed back in the same breath as the
+  // "added to your medicines" reply.
+  const finalizePrescription = useCallback(
+    (result: NluResult, anchor: TimeOfDay) => {
+      const times = computeDoseTimes(anchor, result.frequencyPerDay ?? 1);
+      addMedication({
+        name: result.prescriptionName ?? result.rawText,
+        dosage: result.dosage,
+        purpose: result.purpose,
+        doctorName: result.doctorName,
+        frequencyLabel: frequencyLabel(result.frequencyPerDay),
+        times,
+        endDate: result.durationDays ? addDays(todayISO(), result.durationDays) : undefined,
+      });
+      const combined = `${generateReply(result, voiceStyle)} ${scheduleConfirmedReply(result.spokenLanguage, times)}`;
+      speak(combined, result.spokenLanguage);
+      setStatus("idle");
+      setPending(null);
+    },
+    [addMedication, speak, voiceStyle]
+  );
+
   const applyResult = useCallback(
     (result: NluResult) => {
       if (result.intent === "confirm-medication-taken" && result.medicationId) {
@@ -72,12 +120,14 @@ export function VoiceConversation({ initialPrompt, onClose }: VoiceConversationP
       } else if (result.intent === "report-feeling" && result.feeling) {
         addHealthEntry(result.feeling, result.rawText);
       } else if (result.intent === "log-prescription") {
-        addMedication({
-          name: result.prescriptionName ?? result.rawText,
-          dosage: result.dosage,
-          purpose: result.purpose,
-          doctorName: result.doctorName,
-        });
+        if (result.explicitTimeOfDay) {
+          finalizePrescription(result, result.explicitTimeOfDay);
+        } else {
+          setPending(result);
+          setStatus("needs-schedule");
+          speak(scheduleTimeQuestion(result.spokenLanguage), result.spokenLanguage);
+        }
+        return;
       } else if (result.intent === "log-condition" && result.conditionName) {
         addCondition(result.conditionName, result.rawText);
       }
@@ -85,7 +135,7 @@ export function VoiceConversation({ initialPrompt, onClose }: VoiceConversationP
       setStatus("idle");
       setPending(null);
     },
-    [markTaken, addSymptom, addHealthEntry, addMedication, addCondition, speak, voiceStyle]
+    [markTaken, addSymptom, addHealthEntry, addCondition, finalizePrescription, speak, voiceStyle, medications]
   );
 
   const handleTranscript = useCallback(
@@ -98,6 +148,12 @@ export function VoiceConversation({ initialPrompt, onClose }: VoiceConversationP
       const result = interpret(text, "en");
       if (result.confidence === "high") {
         applyResult(result);
+      } else if (result.intent === "report-symptom" && result.confidence === "medium") {
+        // The symptom itself is clear — only its severity is missing —
+        // so ask that directly instead of a generic yes/no confirmation.
+        setPending(result);
+        setStatus("needs-severity");
+        speak(generateReply(result, voiceStyle), result.spokenLanguage);
       } else if (result.confidence === "medium") {
         setPending(result);
         setStatus("needs-confirm");
@@ -194,6 +250,34 @@ export function VoiceConversation({ initialPrompt, onClose }: VoiceConversationP
               setStatus("needs-help");
             }}
           />
+        )}
+
+        {status === "needs-severity" && pending && (
+          <div className="grid grid-cols-3 gap-2.5">
+            {SEVERITY_OPTIONS.map((sev) => (
+              <button
+                key={sev}
+                onClick={() => applyResult({ ...pending, severity: sev, confidence: "high" })}
+                className="rounded-2xl border-2 border-ink/8 bg-warm-white px-3 py-3.5 text-base font-semibold capitalize text-ink transition-all active:scale-95 hover:border-teal/40"
+              >
+                {sev}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {status === "needs-schedule" && pending && (
+          <div className="grid grid-cols-2 gap-2.5">
+            {TIME_OF_DAY_OPTIONS.map((tod) => (
+              <button
+                key={tod}
+                onClick={() => finalizePrescription(pending, tod)}
+                className="rounded-2xl border-2 border-ink/8 bg-warm-white px-4 py-3.5 text-base font-semibold capitalize text-ink transition-all active:scale-95 hover:border-teal/40"
+              >
+                {tod}
+              </button>
+            ))}
+          </div>
         )}
 
         {status === "needs-help" && (
