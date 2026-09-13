@@ -229,7 +229,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setLanguage,
       voiceStyle,
       setVoiceStyle,
-      t: dictionaries[language],
+      // The app's own interface (nav, buttons, headings) always stays in
+      // English — only the voice conversation's actual replies (driven by
+      // conversationReplies.ts, keyed off the language just spoken) adapt
+      // per utterance. `language` still drives speech-recognition locale
+      // and the detection fallback, just not the UI dictionary.
+      t: dictionaries.en,
       takenToday,
       markTaken,
       healthEntries,

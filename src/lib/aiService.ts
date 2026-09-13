@@ -1,6 +1,6 @@
 import type { ConfidenceLevel, LanguageCode, SymptomSeverity } from "./types";
 import { medications } from "./mock-data";
-import { detectSpokenLanguage, replyDictionaries } from "./conversationReplies";
+import { detectSpokenLanguage, localizeSeverity, localizeSymptomName, replyDictionaries } from "./conversationReplies";
 
 /**
  * aiService is a placeholder for the future natural-language layer:
@@ -71,8 +71,17 @@ const severityKeywords: Record<string, SymptomSeverity> = {
   zyada: "moderate",
 };
 
-const PRESCRIPTION_TRIGGERS = /(prescribed|started me on|put me on|new medicine|new medication|doctor gave me|likh diya|shuru kiya)/i;
+// English plus common romanized Hindi/Tamil/Telugu/Kannada/Malayalam
+// phrasings for "a doctor gave/wrote me a new medicine" — registering a
+// prescription needs to work the same regardless of which language was
+// spoken, not just English.
+const PRESCRIPTION_TRIGGERS =
+  /(prescribed|started me on|put me on|new medicine|new medication|doctor gave me|likh diya|shuru kiya|kudutharu|ezhuthi kuduthaanga|ichcharu|raasicharu|kottru|barediddare|tannu|ezhuthi tannu)/i;
 
+// Loanwords like "sugar", "BP", and the condition names themselves are
+// commonly spoken as-is even mid-sentence in Hindi/Tamil/Telugu/Kannada/
+// Malayalam, so plain keyword matching already covers most real usage
+// without needing a full per-language translation.
 const conditionKeywords: Record<string, string> = {
   diabetes: "Type 2 Diabetes",
   diabetic: "Type 2 Diabetes",
@@ -80,6 +89,8 @@ const conditionKeywords: Record<string, string> = {
   hypertension: "Hypertension",
   "high blood pressure": "Hypertension",
   "blood pressure": "Hypertension",
+  bp: "Hypertension",
+  pressure: "Hypertension",
   asthma: "Asthma",
   arthritis: "Arthritis",
   thyroid: "Thyroid",
@@ -256,10 +267,12 @@ export function generateReply(intent: NluResult, style: "warm" | "bold" = "warm"
       const base = pick(r.takenHigh);
       return style === "bold" ? `${base} ${pick(BOLD_TAKEN_FLOURISHES)}` : base;
     }
-    case "report-symptom":
+    case "report-symptom": {
+      const localizedName = intent.symptomName ? localizeSymptomName(intent.symptomName, intent.spokenLanguage) : "";
       return intent.severity && intent.symptomName
-        ? r.symptomRecorded(intent.severity, intent.symptomName)
-        : r.symptomAskSeverity(intent.symptomName ?? "");
+        ? r.symptomRecorded(localizeSeverity(intent.severity, intent.spokenLanguage), localizedName)
+        : r.symptomAskSeverity(localizedName);
+    }
     case "report-feeling": {
       if (intent.feeling === "good") {
         const base = pick(r.feelingThanksGood);

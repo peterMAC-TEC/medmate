@@ -91,7 +91,11 @@ export function VoiceConversation({ initialPrompt, onClose }: VoiceConversationP
   const handleTranscript = useCallback(
     (text: string) => {
       addTurn("user", text);
-      const result = interpret(text, language);
+      // Detection falls back to English when the text gives no clear
+      // signal — not the Settings recognition-locale — so a plain English
+      // sentence never gets answered in Hindi just because that's the
+      // saved voice preference.
+      const result = interpret(text, "en");
       if (result.confidence === "high") {
         applyResult(result);
       } else if (result.confidence === "medium") {
@@ -104,7 +108,7 @@ export function VoiceConversation({ initialPrompt, onClose }: VoiceConversationP
         speak(generateReply(result, voiceStyle), result.spokenLanguage);
       }
     },
-    [addTurn, language, applyResult, speak, voiceStyle]
+    [addTurn, applyResult, speak, voiceStyle]
   );
 
   const startListening = useCallback(() => {

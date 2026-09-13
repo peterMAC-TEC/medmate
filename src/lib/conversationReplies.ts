@@ -152,6 +152,36 @@ const ml: ReplySet = {
 
 export const replyDictionaries: Record<LanguageCode, ReplySet> = { en, hi, ta, te, kn, ml };
 
+// So a spoken reply in, say, Hindi doesn't drop back into English for the
+// symptom name and severity word it's reporting — those get looked up
+// here rather than interpolated as-is from the (always-English) canonical
+// values used internally (Symptom.name, SymptomSeverity).
+const severityLabels: Record<LanguageCode, Record<string, string>> = {
+  en: { mild: "mild", moderate: "moderate", severe: "severe" },
+  hi: { mild: "हल्का", moderate: "मध्यम", severe: "गंभीर" },
+  ta: { mild: "லேசான", moderate: "மிதமான", severe: "கடுமையான" },
+  te: { mild: "తేలికపాటి", moderate: "మధ్యస్థ", severe: "తీవ్రమైన" },
+  kn: { mild: "ಸೌಮ್ಯ", moderate: "ಮಧ್ಯಮ", severe: "ತೀವ್ರ" },
+  ml: { mild: "ലഘു", moderate: "മിതമായ", severe: "കഠിനമായ" },
+};
+
+const symptomLabels: Record<LanguageCode, Record<string, string>> = {
+  en: { Dizziness: "Dizziness", Headache: "Headache", "Knee pain": "Knee pain", Fatigue: "Fatigue", Nausea: "Nausea" },
+  hi: { Dizziness: "चक्कर आना", Headache: "सिरदर्द", "Knee pain": "घुटने का दर्द", Fatigue: "थकान", Nausea: "जी मिचलाना" },
+  ta: { Dizziness: "தலைச்சுற்றல்", Headache: "தலைவலி", "Knee pain": "முழங்கால் வலி", Fatigue: "சோர்வு", Nausea: "குமட்டல்" },
+  te: { Dizziness: "మైకము", Headache: "తలనొప్పి", "Knee pain": "మోకాలి నొప్పి", Fatigue: "అలసట", Nausea: "వికారం" },
+  kn: { Dizziness: "ತಲೆ ತಿರುಗುವಿಕೆ", Headache: "ತಲೆನೋವು", "Knee pain": "ಮೊಣಕಾಲು ನೋವು", Fatigue: "ಆಯಾಸ", Nausea: "ವಾಕರಿಕೆ" },
+  ml: { Dizziness: "തലകറക്കം", Headache: "തലവേദന", "Knee pain": "മുട്ട് വേദന", Fatigue: "ക്ഷീണം", Nausea: "ഓക്കാനം" },
+};
+
+export function localizeSeverity(severity: string, lang: LanguageCode): string {
+  return severityLabels[lang]?.[severity] ?? severityLabels.en[severity] ?? severity;
+}
+
+export function localizeSymptomName(name: string, lang: LanguageCode): string {
+  return symptomLabels[lang]?.[name] ?? name;
+}
+
 // Romanized-script hint words, used when the transcript isn't in native
 // script (common when someone types or a recognizer transliterates).
 const ROMANIZED_HINTS: Partial<Record<LanguageCode, string[]>> = {

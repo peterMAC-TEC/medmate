@@ -42,7 +42,11 @@ export default function SettingsPage() {
 
       <SettingsSection title={t.voice}>
         <div className="px-5 py-4">
-          <p className="text-base font-medium text-ink mb-3">{t.preferredLanguage}</p>
+          <p className="text-base font-medium text-ink mb-1">{t.preferredLanguage}</p>
+          <p className="text-sm text-muted mb-3">
+            MedMate always understands and replies in whichever language you speak — this is just the default
+            for recognizing your voice.
+          </p>
           <LanguageSelector compact />
         </div>
         <div className="px-5 py-4">
